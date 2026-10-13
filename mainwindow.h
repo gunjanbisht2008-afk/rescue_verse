@@ -4,9 +4,9 @@
 
 #include <QMainWindow>
 
-#include <QStringList>
-
 class QLabel;
+class QLineEdit;
+class QPlainTextEdit;
 class QTableWidget;
 
 class MainWindow : public QMainWindow {
@@ -17,19 +17,25 @@ public:
 
 private slots:
     void showNextVictim();
-    void assignTeam();
+    void on_btnAddVictim_clicked();
+    void on_btnDispatchTeam_clicked();
     void sendToHospital();
     void resetSimulation();
 
 private:
     void buildUi();
+    void initializeTables();
     void refreshTables();
     void showResult(const ActionResult& result);
-    QTableWidget* createTable(const QStringList& headers);
+    QTableWidget* createTable();
 
     RescueController controller_;
     QLabel* currentVictimLabel_;
     QLabel* activityLabel_;
+    QLineEdit* lineEditVictimName_;
+    QLineEdit* lineEditLocation_;
+    QLineEdit* lineEditSeverity_;
+    QPlainTextEdit* txtLogs_;
     QTableWidget* victimsTable_;
     QTableWidget* teamsTable_;
     QTableWidget* hospitalsTable_;

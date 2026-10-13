@@ -5,7 +5,9 @@
 #include <QGridLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMainWindow>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTableWidget>
@@ -13,32 +15,38 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-namespace {
-
-QTableWidgetItem* cell(const QString& text)
+namespace
 {
-    auto* item = new QTableWidgetItem(text);
-    item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-    return item;
+
+    QTableWidgetItem *cell(const QString &text)
+    {
+        auto *item = new QTableWidgetItem(text);
+        item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+        return item;
+    }
+
+    QString availabilityText(const RescueTeam &team)
+    {
+        return team.isAvailable() ? "Available" : "Busy";
+    }
+
 }
 
-QString availabilityText(const RescueTeam& team)
-{
-    return team.isAvailable() ? "Available" : "Busy";
-}
-
-}
-
-MainWindow::MainWindow(QWidget* parent)
+MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
-    currentVictimLabel_(nullptr),
-    activityLabel_(nullptr),
-    victimsTable_(nullptr),
-    teamsTable_(nullptr),
-    hospitalsTable_(nullptr),
-    resourcesTable_(nullptr)
+      currentVictimLabel_(nullptr),
+      activityLabel_(nullptr),
+      lineEditVictimName_(nullptr),
+      lineEditLocation_(nullptr),
+      lineEditSeverity_(nullptr),
+      txtLogs_(nullptr),
+      victimsTable_(nullptr),
+      teamsTable_(nullptr),
+      hospitalsTable_(nullptr),
+      resourcesTable_(nullptr)
 {
     buildUi();
+    initializeTables();
     refreshTables();
 }
 
@@ -47,24 +55,53 @@ void MainWindow::buildUi()
     setWindowTitle("RescueVerse | Rescue & Resource Command Center");
     resize(1280, 780);
 
-    auto* central = new QWidget(this);
-    auto* rootLayout = new QVBoxLayout(central);
+    auto *central = new QWidget(this);
+    auto *rootLayout = new QVBoxLayout(central);
     rootLayout->setContentsMargins(24, 20, 24, 20);
     rootLayout->setSpacing(14);
 
-    auto* title = new QLabel("RESCUEVERSE // RESCUE & RESOURCE MODULE");
+    auto *title = new QLabel("RESCUEVERSE // RESCUE & RESOURCE MODULE");
     title->setObjectName("title");
     title->setProperty("data-testid", "dashboard-title");
     rootLayout->addWidget(title);
 
-    auto* subtitle = new QLabel(
+    auto *subtitle = new QLabel(
         "Student 2 operations console  |  Priority queue → team assignment → hospital → resources");
     subtitle->setObjectName("subtitle");
     rootLayout->addWidget(subtitle);
 
-    auto* commandPanel = new QWidget;
+    auto *intakePanel = new QWidget;
+    intakePanel->setObjectName("panel");
+    auto *intakeLayout = new QGridLayout(intakePanel);
+    intakeLayout->setContentsMargins(14, 10, 14, 12);
+    intakeLayout->setHorizontalSpacing(10);
+    intakeLayout->addWidget(new QLabel("VICTIM NAME"), 0, 0);
+    intakeLayout->addWidget(new QLabel("LOCATION"), 0, 1);
+    intakeLayout->addWidget(new QLabel("SEVERITY"), 0, 2);
+
+    lineEditVictimName_ = new QLineEdit;
+    lineEditVictimName_->setObjectName("lineEditVictimName");
+    lineEditVictimName_->setPlaceholderText("Name");
+    lineEditLocation_ = new QLineEdit;
+    lineEditLocation_->setObjectName("lineEditLocation");
+    lineEditLocation_->setPlaceholderText("Area or location");
+    lineEditSeverity_ = new QLineEdit;
+    lineEditSeverity_->setObjectName("lineEditSeverity");
+    lineEditSeverity_->setPlaceholderText("Normal, Serious, or Critical");
+
+    auto *addVictimButton = new QPushButton("ADD VICTIM");
+    addVictimButton->setObjectName("btnAddVictim");
+    connect(addVictimButton, &QPushButton::clicked,
+            this, &MainWindow::on_btnAddVictim_clicked);
+    intakeLayout->addWidget(lineEditVictimName_, 1, 0);
+    intakeLayout->addWidget(lineEditLocation_, 1, 1);
+    intakeLayout->addWidget(lineEditSeverity_, 1, 2);
+    intakeLayout->addWidget(addVictimButton, 1, 3);
+    rootLayout->addWidget(intakePanel);
+
+    auto *commandPanel = new QWidget;
     commandPanel->setObjectName("commandPanel");
-    auto* commandLayout = new QGridLayout(commandPanel);
+    auto *commandLayout = new QGridLayout(commandPanel);
     commandLayout->setContentsMargins(14, 12, 14, 12);
     commandLayout->setHorizontalSpacing(10);
 
@@ -75,12 +112,12 @@ void MainWindow::buildUi()
     activityLabel_->setObjectName("activity");
     activityLabel_->setWordWrap(true);
 
-    auto* nextButton = new QPushButton("1  SHOW NEXT VICTIM");
-    auto* assignButton = new QPushButton("2  ASSIGN TEAM");
-    auto* hospitalButton = new QPushButton("3  SEND TO HOSPITAL");
-    auto* resetButton = new QPushButton("RESET");
+    auto *nextButton = new QPushButton("1  SHOW NEXT VICTIM");
+    auto *assignButton = new QPushButton("2  DISPATCH TEAM");
+    auto *hospitalButton = new QPushButton("3  SEND TO HOSPITAL");
+    auto *resetButton = new QPushButton("RESET");
     nextButton->setObjectName("primaryButton");
-    assignButton->setObjectName("primaryButton");
+    assignButton->setObjectName("btnDispatchTeam");
     hospitalButton->setObjectName("primaryButton");
     resetButton->setObjectName("resetButton");
 
@@ -90,7 +127,8 @@ void MainWindow::buildUi()
     resetButton->setProperty("data-testid", "reset-simulation-button");
 
     connect(nextButton, &QPushButton::clicked, this, &MainWindow::showNextVictim);
-    connect(assignButton, &QPushButton::clicked, this, &MainWindow::assignTeam);
+    connect(assignButton, &QPushButton::clicked,
+            this, &MainWindow::on_btnDispatchTeam_clicked);
     connect(hospitalButton, &QPushButton::clicked, this, &MainWindow::sendToHospital);
     connect(resetButton, &QPushButton::clicked, this, &MainWindow::resetSimulation);
 
@@ -103,46 +141,46 @@ void MainWindow::buildUi()
     commandLayout->addWidget(resetButton, 1, 5);
     rootLayout->addWidget(commandPanel);
 
-    auto* grid = new QGridLayout;
+    auto *grid = new QGridLayout;
     grid->setSpacing(14);
 
-    victimsTable_ = createTable({"ID", "NAME", "LOCATION", "PRIORITY", "STATUS"});
-    teamsTable_ = createTable({"TEAM", "TYPE", "LOCATION", "STATUS"});
-    hospitalsTable_ = createTable({"HOSPITAL", "LOCATION", "BEDS"});
-    resourcesTable_ = createTable({"RESOURCE", "AVAILABLE"});
+    victimsTable_ = createTable();
+    teamsTable_ = createTable();
+    hospitalsTable_ = createTable();
+    resourcesTable_ = createTable();
 
-    auto* victimsHeading = new QLabel("VICTIMS // PRIORITY QUEUE VIEW");
+    auto *victimsHeading = new QLabel("VICTIMS // PRIORITY QUEUE VIEW");
     victimsHeading->setObjectName("sectionHeading");
-    auto* teamsHeading = new QLabel("RESCUE TEAMS");
+    auto *teamsHeading = new QLabel("RESCUE TEAMS");
     teamsHeading->setObjectName("sectionHeading");
-    auto* hospitalsHeading = new QLabel("HOSPITAL CAPACITY");
+    auto *hospitalsHeading = new QLabel("HOSPITAL CAPACITY");
     hospitalsHeading->setObjectName("sectionHeading");
-    auto* resourcesHeading = new QLabel("MEDICINE & RESOURCES");
+    auto *resourcesHeading = new QLabel("MEDICINE & RESOURCES");
     resourcesHeading->setObjectName("sectionHeading");
 
-    auto* victimsPanel = new QWidget;
-    auto* victimsLayout = new QVBoxLayout(victimsPanel);
+    auto *victimsPanel = new QWidget;
+    auto *victimsLayout = new QVBoxLayout(victimsPanel);
     victimsLayout->setContentsMargins(14, 12, 14, 14);
     victimsLayout->addWidget(victimsHeading);
     victimsLayout->addWidget(victimsTable_);
     victimsPanel->setObjectName("panel");
 
-    auto* teamsPanel = new QWidget;
-    auto* teamsLayout = new QVBoxLayout(teamsPanel);
+    auto *teamsPanel = new QWidget;
+    auto *teamsLayout = new QVBoxLayout(teamsPanel);
     teamsLayout->setContentsMargins(14, 12, 14, 14);
     teamsLayout->addWidget(teamsHeading);
     teamsLayout->addWidget(teamsTable_);
     teamsPanel->setObjectName("panel");
 
-    auto* hospitalsPanel = new QWidget;
-    auto* hospitalsLayout = new QVBoxLayout(hospitalsPanel);
+    auto *hospitalsPanel = new QWidget;
+    auto *hospitalsLayout = new QVBoxLayout(hospitalsPanel);
     hospitalsLayout->setContentsMargins(14, 12, 14, 14);
     hospitalsLayout->addWidget(hospitalsHeading);
     hospitalsLayout->addWidget(hospitalsTable_);
     hospitalsPanel->setObjectName("panel");
 
-    auto* resourcesPanel = new QWidget;
-    auto* resourcesLayout = new QVBoxLayout(resourcesPanel);
+    auto *resourcesPanel = new QWidget;
+    auto *resourcesLayout = new QVBoxLayout(resourcesPanel);
     resourcesLayout->setContentsMargins(14, 12, 14, 14);
     resourcesLayout->addWidget(resourcesHeading);
     resourcesLayout->addWidget(resourcesTable_);
@@ -153,6 +191,16 @@ void MainWindow::buildUi()
     grid->addWidget(resourcesPanel, 1, 2, 1, 1);
     grid->addWidget(hospitalsPanel, 2, 0, 1, 3);
     rootLayout->addLayout(grid, 1);
+
+    auto *logsHeading = new QLabel("ACTIVITY LOG");
+    logsHeading->setObjectName("sectionHeading");
+    txtLogs_ = new QPlainTextEdit;
+    txtLogs_->setObjectName("txtLogs");
+    txtLogs_->setReadOnly(true);
+    txtLogs_->setMaximumBlockCount(200);
+    txtLogs_->setMaximumHeight(92);
+    rootLayout->addWidget(logsHeading);
+    rootLayout->addWidget(txtLogs_);
 
     setCentralWidget(central);
     statusBar()->showMessage("SYSTEM ONLINE // Local demo data loaded");
@@ -224,11 +272,9 @@ void MainWindow::buildUi()
     )");
 }
 
-QTableWidget* MainWindow::createTable(const QStringList& headers)
+QTableWidget *MainWindow::createTable()
 {
-    auto* table = new QTableWidget;
-    table->setColumnCount(headers.size());
-    table->setHorizontalHeaderLabels(headers);
+    auto *table = new QTableWidget;
     table->verticalHeader()->setVisible(false);
     table->setSelectionMode(QAbstractItemView::NoSelection);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -239,11 +285,32 @@ QTableWidget* MainWindow::createTable(const QStringList& headers)
     return table;
 }
 
+void MainWindow::initializeTables()
+{
+    victimsTable_->setObjectName("tableVictims");
+    victimsTable_->setColumnCount(5);
+    victimsTable_->setHorizontalHeaderLabels(
+        {"ID", "NAME", "LOCATION", "PRIORITY", "STATUS"});
+
+    teamsTable_->setObjectName("tableTeams");
+    teamsTable_->setColumnCount(4);
+    teamsTable_->setHorizontalHeaderLabels({"TEAM", "TYPE", "LOCATION", "STATUS"});
+
+    hospitalsTable_->setObjectName("tableHospitals");
+    hospitalsTable_->setColumnCount(3);
+    hospitalsTable_->setHorizontalHeaderLabels({"HOSPITAL", "LOCATION", "BEDS"});
+
+    resourcesTable_->setObjectName("tableResources");
+    resourcesTable_->setColumnCount(2);
+    resourcesTable_->setHorizontalHeaderLabels({"RESOURCE", "AVAILABLE"});
+}
+
 void MainWindow::refreshTables()
 {
     victimsTable_->setRowCount(controller_.victims().size());
-    for (int row = 0; row < controller_.victims().size(); ++row) {
-        const Victim& victim = controller_.victims().at(row);
+    for (int row = 0; row < controller_.victims().size(); ++row)
+    {
+        const Victim &victim = controller_.victims().at(row);
         victimsTable_->setItem(row, 0, cell(QString::number(victim.id())));
         victimsTable_->setItem(row, 1, cell(victim.name()));
         victimsTable_->setItem(row, 2, cell(victim.location()));
@@ -252,8 +319,9 @@ void MainWindow::refreshTables()
     }
 
     teamsTable_->setRowCount(controller_.teams().size());
-    for (int row = 0; row < controller_.teams().size(); ++row) {
-        const RescueTeam& team = controller_.teams().at(row);
+    for (int row = 0; row < controller_.teams().size(); ++row)
+    {
+        const RescueTeam &team = controller_.teams().at(row);
         teamsTable_->setItem(row, 0, cell(QString("Team %1").arg(team.id())));
         teamsTable_->setItem(row, 1, cell(teamTypeToString(team.type())));
         teamsTable_->setItem(row, 2, cell(team.location()));
@@ -261,20 +329,20 @@ void MainWindow::refreshTables()
     }
 
     hospitalsTable_->setRowCount(controller_.hospitals().size());
-    for (int row = 0; row < controller_.hospitals().size(); ++row) {
-        const Hospital& hospital = controller_.hospitals().at(row);
+    for (int row = 0; row < controller_.hospitals().size(); ++row)
+    {
+        const Hospital &hospital = controller_.hospitals().at(row);
         hospitalsTable_->setItem(row, 0, cell(hospital.name()));
         hospitalsTable_->setItem(row, 1, cell(hospital.location()));
         hospitalsTable_->setItem(
-            row, 2, cell(QString("%1 / %2 available")
-                     .arg(hospital.availableBeds())
-                     .arg(hospital.totalBeds())));
+            row, 2, cell(QString("%1 / %2 available").arg(hospital.availableBeds()).arg(hospital.totalBeds())));
     }
 
     const QMap<QString, int> resources = controller_.resources().allResources();
     resourcesTable_->setRowCount(resources.size());
     int row = 0;
-    for (auto it = resources.cbegin(); it != resources.cend(); ++it, ++row) {
+    for (auto it = resources.cbegin(); it != resources.cend(); ++it, ++row)
+    {
         resourcesTable_->setItem(row, 0, cell(it.key()));
         resourcesTable_->setItem(row, 1, cell(QString::number(it.value())));
     }
@@ -289,10 +357,13 @@ void MainWindow::refreshTables()
                                      : "No victim selected");
 }
 
-void MainWindow::showResult(const ActionResult& result)
+void MainWindow::showResult(const ActionResult &result)
 {
     activityLabel_->setText(result.message);
     statusBar()->showMessage(result.message, 5000);
+    txtLogs_->appendPlainText(QString("%1 %2")
+                                  .arg(result.success ? "[OK]" : "[ERROR]")
+                                  .arg(result.message));
     refreshTables();
 }
 
@@ -301,8 +372,51 @@ void MainWindow::showNextVictim()
     showResult(controller_.showNextVictim());
 }
 
-void MainWindow::assignTeam()
+void MainWindow::on_btnAddVictim_clicked()
 {
+    const QString severity = lineEditSeverity_->text().trimmed().toLower();
+    VictimPriority priority;
+    if (severity == "normal")
+    {
+        priority = VictimPriority::Normal;
+    }
+    else if (severity == "serious")
+    {
+        priority = VictimPriority::Serious;
+    }
+    else if (severity == "critical")
+    {
+        priority = VictimPriority::Critical;
+    }
+    else
+    {
+        showResult({false, "Severity must be Normal, Serious, or Critical."});
+        return;
+    }
+
+    const ActionResult result = controller_.addVictim(
+        lineEditVictimName_->text(), lineEditLocation_->text(), priority);
+    showResult(result);
+    if (result.success)
+    {
+        lineEditVictimName_->clear();
+        lineEditLocation_->clear();
+        lineEditSeverity_->clear();
+    }
+}
+
+void MainWindow::on_btnDispatchTeam_clicked()
+{
+    if (!controller_.currentVictim().has_value())
+    {
+        const ActionResult selection = controller_.showNextVictim();
+        if (!selection.success)
+        {
+            showResult(selection);
+            return;
+        }
+    }
+
     showResult(controller_.assignAvailableTeam());
 }
 

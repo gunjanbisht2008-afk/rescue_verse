@@ -17,18 +17,17 @@ set(PROJECT_SOURCES
         mainwindow.cpp
         mainwindow.h
         mainwindow.ui
+        victim.h victim.cpp
+        rescueteam.h rescueteam.cpp
+        hospital.h hospital.cpp
+        resourcemanager.h resourcemanager.cpp
+        rescuecontroller.h rescuecontroller.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(rescue_verse
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
-        victim.h victim.cpp
-        rescueteam.h rescueteam.cpp
-        hospital.h hospital.cpp
-        resourcemanager.h resourcemanager.cpp
-        rescuecontroller.h rescuecontroller.cpp
-        logic_test.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET rescue_verse APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -49,6 +48,20 @@ else()
 endif()
 
 target_link_libraries(rescue_verse PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(rescue_logic_test
+        logic_test.cpp
+        victim.cpp
+        rescueteam.cpp
+        hospital.cpp
+        resourcemanager.cpp
+        rescuecontroller.cpp
+    )
+    target_link_libraries(rescue_logic_test PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+    add_test(NAME rescue_logic_test COMMAND rescue_logic_test)
+endif()
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
